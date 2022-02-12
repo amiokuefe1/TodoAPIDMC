@@ -17,7 +17,7 @@ namespace TodoAPIDMC.Controllers
 
         // GET: api/TodoItems
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
+        public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems() // IEnumerable: in this method type we are expecting an iterable collection, ActionResult: this method type's Result triggers an Action, Task: This method is an asynchronous type. Do we call this method type chaining?
         {
             return await _context.TodoItems
                 .Select(x => ItemToDTO(x))
