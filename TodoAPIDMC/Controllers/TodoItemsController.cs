@@ -1,16 +1,10 @@
-﻿#nullable disable
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TodoAPIDMC.Models;
 
-namespace TodoAPIDMC.Controllers // this is the overall name of the controller class for this project
+namespace TodoAPIDMC.Controllers
 {
-    [Route("api/[controller]")]// this is set in our launch settings as the global controller url path for each REST API request/response
+    [Route("api/[controller]")]
     [ApiController]
     public class TodoItemsController : ControllerBase
     {
@@ -22,15 +16,17 @@ namespace TodoAPIDMC.Controllers // this is the overall name of the controller c
         }
 
         // GET: api/TodoItems
-        [HttpGet]//does adding this attribute takes care of adding the complete route attached to this method in the controller?
-        public async Task<ActionResult<IEnumerable<TodoItem>>> GetTodoItems()
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
         {
-            return await _context.TodoItems.ToListAsync();// dbName.dbModel.dbQuery
+            return await _context.TodoItems
+                .Select(x => ItemToDTO(x))
+                .ToListAsync();
         }
 
         // GET: api/TodoItems/5
-        [HttpGet("{id}")] // fetches the route to which this controller will be executed
-        public async Task<ActionResult<TodoItem>> GetTodoItem(long id) // the name of the controller method that is executed on the specified url
+        [HttpGet("{id}")]
+        public async Task<ActionResult<TodoItemDTO>> GetTodoItem(long id)
         {
             var todoItem = await _context.TodoItems.FindAsync(id);
 
@@ -39,51 +35,56 @@ namespace TodoAPIDMC.Controllers // this is the overall name of the controller c
                 return NotFound();
             }
 
-            return todoItem;
+            return ItemToDTO(todoItem);
         }
-
         // PUT: api/TodoItems/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")] // this attribute helps specify to the api controller that 
-        //this is a put method and hopefully imports security functionalities in-built to our put method
-        public async Task<IActionResult> PutTodoItem(long id, TodoItem todoItem)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTodoItem(long id, TodoItemDTO todoItemDTO)
         {
-            if (id != todoItem.Id)
+            if (id != todoItemDTO.Id)
             {
                 return BadRequest();
             }
 
-            _context.Entry(todoItem).State = EntityState.Modified; // what does this mean?
+            var todoItem = await _context.TodoItems.FindAsync(id);
+            if (todoItem == null)
+            {
+                return NotFound();
+            }
+
+            todoItem.Name = todoItemDTO.Name;
+            todoItem.IsComplete = todoItemDTO.IsComplete;
 
             try
             {
-                await _context.SaveChangesAsync(); // execute put request into the db asychronously
+                await _context.SaveChangesAsync();
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException) when (!TodoItemExists(id))
             {
-                if (!TodoItemExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
         }
-
         // POST: api/TodoItems
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<TodoItem>> PostTodoItem(TodoItem todoItem)
+        public async Task<ActionResult<TodoItemDTO>> CreateTodoItem(TodoItemDTO todoItemDTO)
         {
+            var todoItem = new TodoItem
+            {
+                IsComplete = todoItemDTO.IsComplete,
+                Name = todoItemDTO.Name
+            };
+
             _context.TodoItems.Add(todoItem);
             await _context.SaveChangesAsync();
 
-            //return CreatedAtAction("GetTodoItem", new { id = todoItem.Id }, todoItem);
-            return CreatedAtAction(nameof(GetTodoItem), new { id = todoItem.Id }, todoItem);
+            return CreatedAtAction(
+                nameof(GetTodoItem),
+                new { id = todoItem.Id },
+                ItemToDTO(todoItem));
         }
 
         // DELETE: api/TodoItems/5
@@ -91,6 +92,7 @@ namespace TodoAPIDMC.Controllers // this is the overall name of the controller c
         public async Task<IActionResult> DeleteTodoItem(long id)
         {
             var todoItem = await _context.TodoItems.FindAsync(id);
+
             if (todoItem == null)
             {
                 return NotFound();
@@ -106,5 +108,13 @@ namespace TodoAPIDMC.Controllers // this is the overall name of the controller c
         {
             return _context.TodoItems.Any(e => e.Id == id);
         }
+
+        private static TodoItemDTO ItemToDTO(TodoItem todoItem) =>
+            new TodoItemDTO
+            {
+                Id = todoItem.Id,
+                Name = todoItem.Name,
+                IsComplete = todoItem.IsComplete
+            };
     }
 }
